@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APJ Bakery | Welcome</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap"
+        rel="stylesheet">
+    <style>
+        .login-card {
+            max-width: 450px;
+            margin: 4rem auto;
+            padding: 2.5rem;
+            text-align: center;
+        }
+
+        .login-card h2 {
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+
+        .login-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+            text-align: left;
+        }
+
+        .login-form label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            margin-bottom: -0.5rem;
+        }
+
+        .login-form input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .login-form input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(139, 0, 0, 0.1);
+            outline: none;
+        }
+
+        .table-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(218, 165, 32, 0.15);
+            padding: 0.5rem 1.2rem;
+            border-radius: 50px;
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(218, 165, 32, 0.3);
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="hero mini">
+        <nav class="navbar">
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="50" cy="50" r="45" stroke="#DAA520" stroke-width="2" />
+                    <path d="M30 65C30 50 40 40 50 40C60 40 70 50 70 65" stroke="#8B0000" stroke-width="4"
+                        stroke-linecap="round" />
+                    <path d="M40 75L50 65L60 75" stroke="#DAA520" stroke-width="3" stroke-linecap="round" />
+                    <circle cx="50" cy="35" r="8" fill="#8B0000" />
+                </svg>
+                APJ Bakery
+            </div>
+        </nav>
+        <div class="hero-content">
+            <h1>Traditional Taste</h1>
+            <p>Please enter your details to start ordering.</p>
+        </div>
+    </header>
+
+    <main class="container" style="display: block;">
+        <div class="login-card glass-panel">
+            <div id="table-badge-container" class="table-indicator" style="display: none;">
+                <span class="pulse-dot"></span>
+                <span>Ordering for Table: <span id="display-table-id"></span></span>
+            </div>
+
+            <h2>Customer Details</h2>
+            <p>Welcome! We need a few details to process your order.</p>
+
+            <form id="qr-login-form" class="login-form">
+                <div class="form-group-item">
+                    <label for="custName">Your Name</label>
+                    <input type="text" id="custName" placeholder="Enter your full name" required>
+                </div>
+                <div class="form-group-item">
+                    <label for="custDept">Department</label>
+                    <input type="text" id="custDept" placeholder="e.g. CSE, IT, Sales" required>
+                </div>
+                <div class="form-group-item">
+                    <label for="custYear">Year / Designation</label>
+                    <input type="text" id="custYear" placeholder="e.g. 2nd Year, Staff" required>
+                </div>
+                <button type="submit" class="btn-primary" style="margin-top: 1rem;">View Menu & Order</button>
+            </form>
+        </div>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tableId = urlParams.get('table');
+            
+            if (tableId) {
+                document.getElementById('table-badge-container').style.display = 'inline-flex';
+                document.getElementById('display-table-id').textContent = tableId;
+                localStorage.setItem('currentTableId', tableId);
+            }
+
+            const loginForm = document.getElementById('qr-login-form');
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const name = document.getElementById('custName').value.trim();
+                const dept = document.getElementById('custDept').value.trim();
+                const year = document.getElementById('custYear').value.trim();
+
+                if (!name || !dept || !year) {
+                    showToast('Please fill all details', 'error');
+                    return;
+                }
+
+                localStorage.setItem('custName', name);
+                localStorage.setItem('custDept', dept);
+                localStorage.setItem('custYear', year);
+
+                showToast('Welcome ' + name + '! Loading menu...');
+                
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1000);
+            });
+        });
+    </script>
+</body>
+
+</html>

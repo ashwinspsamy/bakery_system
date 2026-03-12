@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APJ Bakery | Traditional Taste</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap"
+        rel="stylesheet">
+    <style>
+        /* Customer UPI styles */
+        .payment-methods {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 1.5rem;
+        }
+
+        .pay-method-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 1rem;
+            border-radius: 12px;
+            border: 2px solid #eee;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .pay-method-btn:hover {
+            border-color: var(--primary-color);
+            background: #fffcf9;
+        }
+
+        .pay-method-btn.active {
+            border-color: var(--primary-color);
+            background: #fff9f0;
+            box-shadow: 0 4px 12px rgba(209, 141, 79, 0.15);
+        }
+
+        .upi-qr-box {
+            display: none;
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: #fdf5e6;
+            border-radius: 16px;
+            border: 1px solid #faebd7;
+            text-align: center;
+        }
+
+        #order-upi-qrcode {
+            background: white;
+            padding: 10px;
+            display: inline-block;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .upi-instruction {
+            font-size: 0.85rem;
+            color: #8B0000;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="hero">
+        <nav class="navbar">
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="50" cy="50" r="45" stroke="#DAA520" stroke-width="2" />
+                    <path d="M30 65C30 50 40 40 50 40C60 40 70 50 70 65" stroke="#8B0000" stroke-width="4"
+                        stroke-linecap="round" />
+                    <path d="M40 75L50 65L60 75" stroke="#DAA520" stroke-width="3" stroke-linecap="round" />
+                    <circle cx="50" cy="35" r="8" fill="#8B0000" />
+                </svg>
+                APJ Bakery
+            </div>
+            <div id="active-table-badge" class="table-badge"
+                style="display: none; background: rgba(46, 204, 113, 0.15); border: 1px solid #2ecc71;">
+                <span class="pulse-dot" style="background: #2ecc71;"></span>
+                <span style="color: #27ae60; font-weight: bold; margin-right: 5px;">Live:</span>
+                <span id="locked-table-no">1</span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="index.html" class="active">Menu</a></li>
+                <li><a href="table.html">Track Order</a></li>
+                <li><a href="admin-login.html">Admin</a></li>
+                <li>
+                    <select id="language-select" class="lang-select">
+                        <option value="en">English</option>
+                        <option value="hi">Hindi</option>
+                        <option value="ta">Tamil (தமிழ்)</option>
+                    </select>
+                </li>
+            </ul>
+        </nav>
+        <div class="hero-content">
+            <h1>Traditional Taste of Tamil Nadu</h1>
+            <p>Handcrafted sweets and savories, baked with honor.</p>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <section class="ordering-setup glass-panel" id="table-selection-panel">
+            <h2>Start Your Order</h2>
+            <div class="form-group inline">
+                <label for="tableNumber">Table Number:</label>
+                <input type="number" id="tableNumber" min="1" max="50" value="1" required>
+            </div>
+            <p>Select your table before adding items to the cart.</p>
+        </section>
+
+        <section class="menu-section">
+            <div class="menu-filters" id="category-filters">
+                <button class="filter-btn active" data-filter="all">All</button>
+            </div>
+
+            <div class="combo-banner glass-panel" id="combo-section"
+                style="display: none; margin-bottom: 2rem; border-left: 5px solid var(--secondary-color); background: linear-gradient(90deg, #fff, #fdf5e6);">
+                <div style="padding: 1.5rem;">
+                    <h3
+                        style="color: var(--primary-color); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 10px;">
+                        🌟 Special Combo Offers
+                    </h3>
+                    <div id="combo-grid" class="menu-grid">
+                        <!-- Combo items injected via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="menu-grid" id="menu-grid">
+                <!-- Menu items injected via JS -->
+            </div>
+        </section>
+
+        <aside class="cart-sidebar glass-panel" id="cart-sidebar">
+            <div class="cart-header">
+                <h3>Your Order</h3>
+                <span id="cart-count" class="badge">0</span>
+            </div>
+            <div class="cart-items" id="cart-items">
+                <!-- Cart items injected via JS -->
+                <p class="empty-cart-msg">Your cart is empty.</p>
+            </div>
+            <div class="cart-footer">
+                <div class="cart-total">
+                    <span>Total:</span>
+                    <span id="cart-total-price">₹0.00</span>
+                </div>
+                <button class="btn-primary" id="place-order-btn" disabled>Place Order</button>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Customer Info Modal - Simplified to redirect to QRlogin if missing info -->
+    <div id="customer-info-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 400px; text-align: center;">
+            <div class="modal-header">
+                <h2>Welcome to APJ Bakery</h2>
+                <p style="font-size: 0.9rem; color: #666; margin-top: 10px;">Please provide your details to view the
+                    menu and start ordering.</p>
+            </div>
+            <button onclick="window.location.href='QRlogin.html'" class="btn-primary" style="margin-top: 20px;">Provide
+                Details</button>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="payment-modal" class="modal-overlay">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2>Confirm Your Order</h2>
+                <button class="close-modal" onclick="closePaymentModal()">&times;</button>
+            </div>
+            <div class="payment-summary">
+                <div id="payment-customer-info"
+                    style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px dashed #ddd; font-size: 0.9rem; color: #555;">
+                </div>
+                <div class="summary-row">
+                    <span>Order Total:</span>
+                    <strong id="modal-total-price">₹0.00</strong>
+                </div>
+            </div>
+
+            <div class="payment-methods" id="payment-methods-selector"
+                style="margin: 1.5rem 0; display: flex; flex-direction: column; gap: 10px;">
+                <label style="font-size: 0.8rem; color: #666; font-weight: 600;">Select Payment Method:</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="pay-method-btn active" onclick="selectPaymentMethod('CASH')" id="method-cash"
+                        style="width: 100%;">
+                        💵 Cash
+                    </button>
+                    <button class="pay-method-btn" onclick="selectPaymentMethod('STORE_QR')" id="method-store-qr"
+                        style="width: 100%;">
+                        🔵 UPI Pay
+                    </button>
+                </div>
+            </div>
+
+
+            <div id="store-qr-display" class="upi-qr-box" style="margin-bottom: 1.5rem;">
+                <img src="images/payment_qr.png" alt="UPI QR Payment"
+                    style="max-width: 180px; border-radius: 8px; background: white; padding: 10px;">
+                <p class="upi-instruction">Scan this UPI QR to pay</p>
+                <p style="font-size: 0.75rem; color: #999; margin-top: 5px;">Show confirmation to the staff</p>
+            </div>
+
+            <button class="btn-primary pay-now-btn" id="confirm-pay-btn" onclick="processPayment()"
+                style="width: 100%; padding: 15px; font-size: 1.1rem; border-radius: 12px; margin-top: 5px;">
+                Place Order & Pay
+            </button>
+            <p class="payment-security"
+                style="text-align: center; margin-top: 15px; font-size: 0.85rem; color: #27ae60;">
+                ✅ Secure Transaction Processing
+            </p>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast"></div>
+
+    <!-- QR Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMenu();
+        });
+    </script>
+</body>
+
+</html>

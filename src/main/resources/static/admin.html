@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APJ Bakery | Admin Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Playfair+Display:wght@600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        /* ── Revenue Summary Strip ── */
+        .revenue-strip {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1.2rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .rev-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.3rem 1.5rem;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            border-top: 4px solid var(--primary-color, #d18d4f);
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .rev-card.blue {
+            border-top-color: #3498db;
+        }
+
+        .rev-card.green {
+            border-top-color: #2ecc71;
+        }
+
+        .rev-card.amber {
+            border-top-color: #f39c12;
+        }
+
+        .rev-card .rev-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #888;
+        }
+
+        .rev-card .rev-value {
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: #2d241c;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .rev-card .rev-sub {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+
+        /* ── Order Bill on card ── */
+        .order-bill-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.5rem;
+            padding-top: 0.6rem;
+            border-top: 1px dashed #e0e0e0;
+        }
+
+        .order-bill-label {
+            font-size: 0.8rem;
+            color: #888;
+            font-weight: 600;
+        }
+
+        .order-bill-amount {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #3e2723;
+        }
+
+        /* ── Nav tweaks ── */
+        .admin-nav .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .admin-nav .admin-badge {
+            background: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 0.3rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        .btn-logout {
+            background: rgba(229, 107, 85, 0.85);
+            color: white;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.88rem;
+            font-weight: 600;
+            font-family: 'Outfit', sans-serif;
+            transition: background 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: #e56b55;
+        }
+
+        /* ── Nav tweaks ── */
+        .admin-nav .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .admin-nav .admin-badge {
+            background: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 0.3rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        .btn-logout {
+            background: rgba(229, 107, 85, 0.85);
+            color: white;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.88rem;
+            font-weight: 600;
+            font-family: 'Outfit', sans-serif;
+            transition: background 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: #e56b55;
+        }
+    </style>
+</head>
+
+<body class="admin-body">
+    <nav class="admin-nav">
+        <div class="logo">
+            <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"
+                style="width: 30px; height: 30px;">
+                <circle cx="50" cy="50" r="45" stroke="#DAA520" stroke-width="2" />
+                <path d="M30 65C30 50 40 40 50 40C60 40 70 50 70 65" stroke="#fff" stroke-width="4"
+                    stroke-linecap="round" />
+                <path d="M40 75L50 65L60 75" stroke="#DAA520" stroke-width="3" stroke-linecap="round" />
+            </svg>
+            APJ Bakery Admin
+        </div>
+        <div class="nav-right">
+            <span class="admin-badge">👤 admin</span>
+            <a href="index.html" style="color:rgba(255,255,255,0.75); text-decoration:none; font-size:0.9rem;">Store</a>
+            <button class="btn-logout" onclick="adminLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <main class="admin-container">
+
+        <!-- ── Revenue Summary ── -->
+        <section class="revenue-strip" id="revenue-strip">
+            <div class="rev-card amber">
+                <span class="rev-label">Total Revenue</span>
+                <span class="rev-value" id="stat-revenue">₹0.00</span>
+                <span class="rev-sub">All completed orders</span>
+            </div>
+            <div class="rev-card blue">
+                <span class="rev-label">Today's Orders</span>
+                <span class="rev-value" id="stat-orders">0</span>
+                <span class="rev-sub">Active + completed</span>
+            </div>
+            <div class="rev-card green">
+                <span class="rev-label">Pending Bill</span>
+                <span class="rev-value" id="stat-pending">₹0.00</span>
+                <span class="rev-sub">Unpaid / in progress</span>
+            </div>
+            <div class="rev-card">
+                <span class="rev-label">Avg Order Value</span>
+                <span class="rev-value" id="stat-avg">₹0.00</span>
+                <span class="rev-sub">Per order</span>
+            </div>
+        </section>
+
+        <!-- ── Order Management ── -->
+        <header class="admin-header">
+            <h2>Order Management</h2>
+            <div class="filters">
+                <button class="status-filter active" data-status="ALL">All</button>
+                <button class="status-filter" data-status="PENDING">Pending</button>
+                <button class="status-filter" data-status="PREPARING">Preparing</button>
+                <button class="status-filter" data-status="READY">Ready</button>
+            </div>
+            <button class="btn-refresh" onclick="loadAllOrders()">Refresh <span class="refresh-icon">↺</span></button>
+        </header>
+
+        <section class="orders-kanban" id="orders-kanban">
+            <div class="kanban-column">
+                <h3>Pending</h3>
+                <div class="order-list" id="col-PENDING"></div>
+            </div>
+            <div class="kanban-column">
+                <h3>Preparing</h3>
+                <div class="order-list" id="col-PREPARING"></div>
+            </div>
+            <div class="kanban-column">
+                <h3>Ready</h3>
+                <div class="order-list" id="col-READY"></div>
+            </div>
+        </section>
+
+        <!-- ── Completed Orders ── -->
+        <header class="admin-header" style="margin-top: 3rem;">
+            <h2>Completed Orders</h2>
+            <span id="completed-count" style="font-size:0.9rem;color:#888;"></span>
+        </header>
+        <section id="completed-orders" style="display:flex; flex-direction:column; gap:1rem; margin-bottom:3rem;">
+        </section>
+
+        <!-- ── Menu Management ── -->
+        <header class="admin-header" style="margin-top: 1rem;">
+            <h2>Menu Management</h2>
+        </header>
+        <section style="display:grid; grid-template-columns: 1fr 2fr; gap:2rem;">
+            <div style="display:flex; flex-direction:column; gap:2rem;">
+                <!-- QR Code Generator -->
+                <div class="admin-order-card">
+                    <h3>QR Code Generator</h3>
+                    <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+                        <p style="font-size:0.85rem; color:#666;">Create QR codes for tables, counters, or specific
+                            areas.</p>
+                        <input type="text" id="qrLabel" placeholder="Enter Table / Name (e.g. Garden-1)"
+                            style="padding:0.7rem; border-radius:8px; border:1px solid #ddd;">
+                        <button class="btn-primary" onclick="generateQR()" style="background:#2ecc71;">Generate
+                            QR</button>
+
+                        <div id="qr-result-container"
+                            style="display:none; text-align:center; margin-top:1.5rem; padding:1.5rem; border:2px dashed #ddd; border-radius:12px; background:#f9f9f9;">
+                            <div id="qrcode"
+                                style="display:inline-block; padding:10px; background:white; border-radius:8px;"></div>
+                            <h4 id="qr-display-label" style="margin-top:10px; color:#2d241c;"></h4>
+                            <button class="btn-refresh" onclick="printQR()" style="margin-top:10px; width:100%;">Print
+                                QR Label</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add New Item -->
+                <div class="admin-order-card" id="add-item-panel">
+                    <h3 id="form-title">Add New Item</h3>
+                    <form id="add-menu-form" style="display:flex; flex-direction:column; gap:10px; margin-top:10px;"
+                        onsubmit="handleMenuSubmit(event)">
+                        <input type="hidden" id="itemId">
+                        <input type="text" id="itemName" placeholder="Item Name" required>
+                        <input type="number" id="itemPrice" placeholder="Price" step="0.01" required>
+                        <select id="itemCategory" required
+                            style="padding: 0.5rem; border-radius: 8px; border: 1px solid #ddd;">
+                            <option value="" disabled selected>Select Category</option>
+                            <option value="Sweets">Sweets</option>
+                            <option value="Savories">Savories</option>
+                            <option value="Combo">Combo Offer (Featured at top)</option>
+                        </select>
+                        <textarea id="itemDesc" placeholder="Description/Combo Contents" rows="3" required></textarea>
+                        <div style="display:flex; gap:10px;">
+                            <button type="submit" id="submit-btn" class="btn-primary" style="flex:1;">Add Item</button>
+                            <button type="button" id="cancel-edit-btn" class="btn-refresh" style="display:none; flex:1;"
+                                onclick="resetMenuForm()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="kanban-column" style="min-height: auto;">
+                <h3>Current Menu</h3>
+                <div id="admin-menu-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+            </div>
+        </section>
+
+        <!-- QR Library -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script>
+            let currentQRCode = null;
+
+            function generateQR() {
+                const label = document.getElementById('qrLabel').value.trim();
+                if (!label) {
+                    showToast("Please enter a label", "error");
+                    return;
+                }
+
+                const container = document.getElementById('qr-result-container');
+                const qrDiv = document.getElementById('qrcode');
+                const displayLabel = document.getElementById('qr-display-label');
+
+                qrDiv.innerHTML = '';
+                container.style.display = 'block';
+                displayLabel.textContent = "Label: " + label;
+
+                const qrUrl = window.location.origin + "/QRlogin.html?table=" + encodeURIComponent(label);
+
+                currentQRCode = new QRCode(qrDiv, {
+                    text: qrUrl,
+                    width: 180,
+                    height: 180,
+                    colorDark: "#8B0000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+
+                showToast("QR Generated for " + label);
+            }
+
+            function printQR() {
+                const label = document.getElementById('qrLabel').value.trim();
+                const qrImg = document.querySelector('#qrcode img');
+
+                if (!qrImg) return;
+
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <html>
+                        <head>
+                            <title>Print QR - ${label}</title>
+                            <style>
+                                body { font-family: 'Outfit', sans-serif; text-align: center; padding: 40px; }
+                                .qr-card { border: 3px solid #8B0000; padding: 30px; display: inline-block; border-radius: 15px; }
+                                h1 { color: #8B0000; margin-bottom: 5px; }
+                                h2 { color: #DAA520; margin-top: 0; font-size: 1.2rem; }
+                                .label-box { background: #8B0000; color: white; padding: 10px; margin-top: 20px; font-size: 1.5rem; font-weight: bold; border-radius: 8px; }
+                                .instruction { margin-top: 15px; color: #666; font-size: 0.9rem; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="qr-card">
+                                <h1>APJ BAKERY</h1>
+                                <h2>Traditional Taste</h2>
+                                <img src="${qrImg.src}" width="250" height="250" />
+                                <div class="label-box">${label}</div>
+                                <p class="instruction">Scan to view menu & order</p>
+                            </div>
+                            <script>
+                                setTimeout(() => { window.print(); window.close(); }, 500);
+                            <\/script>
+                        </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            }
+        </script>
+    </main>
+
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // ── Auth Guard ──────────────────────────────────────────────
+        if (sessionStorage.getItem('adminLoggedIn') !== 'true') {
+            window.location.href = 'admin-login.html';
+        }
+
+        function adminLogout() {
+            sessionStorage.removeItem('adminLoggedIn');
+            window.location.href = 'admin-login.html';
+        }
+
+        // ── Bootstrap ───────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAllOrders();
+            loadAdminMenu();
+            setInterval(loadAllOrders, 10000);
+        });
+
+        // ── Override loadAllOrders with bill + stats support ─────────
+        async function loadAllOrders() {
+            const kanban = document.getElementById('orders-kanban');
+            if (!kanban) return;
+
+            try {
+                const response = await fetch('/api/orders');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const orders = await response.json();
+
+                // Clear columns
+                document.getElementById('col-PENDING').innerHTML = '';
+                document.getElementById('col-PREPARING').innerHTML = '';
+                document.getElementById('col-READY').innerHTML = '';
+
+                const completedSection = document.getElementById('completed-orders');
+                completedSection.innerHTML = '';
+
+                // Compute stats
+                let totalRevenue = 0;
+                let pendingBill = 0;
+                let completedOrders = [];
+
+                orders.forEach(order => {
+                    const bill = order.totalPrice || 0;
+
+                    if (order.status === 'COMPLETED') {
+                        totalRevenue += bill;
+                        completedOrders.push(order);
+                        return;
+                    }
+
+                    pendingBill += bill;
+
+                    const col = document.getElementById(`col-${order.status}`);
+                    if (!col) return;
+
+                    const time = new Date(order.orderTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    let actionBtn = '';
+
+                    if (order.status === 'PENDING') {
+                        actionBtn = `<button class="btn-action prepare" onclick="updateOrderStatus(${order.id}, 'PREPARING')">Prepare</button>`;
+                    } else if (order.status === 'PREPARING') {
+                        actionBtn = `<button class="btn-action ready" onclick="updateOrderStatus(${order.id}, 'READY')">Ready</button>`;
+                    } else if (order.status === 'READY') {
+                        actionBtn = `
+                            <button class="btn-action complete" onclick="updateOrderStatus(${order.id}, 'COMPLETED')" style="background:#27ae60; margin-bottom:5px; width: 100%;">Mark as Paid</button>
+                        `;
+                    }
+
+                    const itemsText = order.items.map(i => `${i.quantity}× ${i.menuItem.name}`).join('<br>');
+
+                    const card = document.createElement('div');
+                    card.className = 'admin-order-card';
+                    card.innerHTML = `
+                        <div class="admin-order-header">
+                            <div style="display:flex; flex-direction:column;">
+                                <span style="font-weight:bold; color:var(--primary-color); font-size:1.1rem;">#${order.id} - ${order.customerName || 'Guest'}</span>
+                                <div style="color:#666; font-size:0.85rem; font-weight:600; margin-top:2px;">
+                                    🏢 ${order.department || 'N/A'} · 🎓 ${order.customerYear || 'N/A'}
+                                </div>
+                            </div>
+                            <span class="admin-badge" style="background:var(--primary-color); color:white; font-size:0.75rem;">${order.tableNumber}</span>
+                        </div>
+                        <div class="admin-order-time">⏰ Ordered at ${time}</div>
+                        <div class="admin-order-items">${itemsText}</div>
+                        <div class="order-bill-row">
+                            <span class="order-bill-label">💰 Total Bill</span>
+                            <span class="order-bill-amount">${formatCurrency(bill)}</span>
+                        </div>
+                        <div class="admin-actions" style="margin-top:0.8rem;">
+                            ${actionBtn}
+                        </div>
+                    `;
+                    col.appendChild(card);
+                });
+
+                // Completed orders section
+                const completedCount = document.getElementById('completed-count');
+                completedCount.textContent = `${completedOrders.length} order(s) completed today`;
+
+                if (completedOrders.length === 0) {
+                    completedSection.innerHTML = `<p style="color:#aaa; font-style:italic; padding:1rem;">No completed orders yet.</p>`;
+                } else {
+                    completedOrders.reverse().forEach(order => {
+                        const time = new Date(order.orderTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const itemsText = order.items.map(i => `${i.quantity}× ${i.menuItem.name}`).join(', ');
+                        const bill = order.totalPrice || 0;
+
+                        const card = document.createElement('div');
+                        card.className = 'admin-order-card';
+                        card.style.borderLeftColor = '#95a5a6';
+                        card.style.display = 'flex';
+                        card.style.justifyContent = 'space-between';
+                        card.style.alignItems = 'center';
+                        card.style.flexWrap = 'wrap';
+                        card.style.gap = '0.5rem';
+                        card.innerHTML = `
+                            <div>
+                                <strong>#${order.id} - ${order.customerName || 'Guest'}</strong>
+                                <span style="margin-left:0.8rem; font-size:0.82rem; color:#aaa;">${time} · Table ${order.tableNumber}</span>
+                                <div style="font-size:0.82rem; color:#888; margin-top:3px;">🏢 ${order.department || 'N/A'} · 🎓 ${order.customerYear || 'N/A'}</div>
+                                <div style="font-size:0.88rem; color:#999; margin-top:0.4rem; padding-top:0.4rem; border-top:1px dashed #eee;">${itemsText}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <span style="background:#f2f4f4; color:#7f8c8d; padding:0.25rem 0.7rem; border-radius:20px; font-size:0.78rem; font-weight:700; text-transform:uppercase;">Completed</span>
+                                <div style="font-size:1.1rem; font-weight:700; color:#2d241c; margin-top:0.4rem;">${formatCurrency(bill)}</div>
+                            </div>
+                        `;
+                        completedSection.appendChild(card);
+                    });
+                }
+
+                // Update stats
+                const avgVal = orders.length > 0 ? (orders.reduce((s, o) => s + (o.totalPrice || 0), 0) / orders.length) : 0;
+                document.getElementById('stat-revenue').textContent = formatCurrency(totalRevenue);
+                document.getElementById('stat-orders').textContent = orders.length;
+                document.getElementById('stat-pending').textContent = formatCurrency(pendingBill);
+                document.getElementById('stat-avg').textContent = formatCurrency(avgVal);
+
+            } catch (error) {
+                console.error('Error fetching all orders:', error);
+                showToast('Failed to fetch orders', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

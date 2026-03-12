@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APJ Bakery | Track Order</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <header class="hero mini">
+        <nav class="navbar">
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="50" cy="50" r="45" stroke="#DAA520" stroke-width="2" />
+                    <path d="M30 65C30 50 40 40 50 40C60 40 70 50 70 65" stroke="#8B0000" stroke-width="4"
+                        stroke-linecap="round" />
+                    <path d="M40 75L50 65L60 75" stroke="#DAA520" stroke-width="3" stroke-linecap="round" />
+                    <circle cx="50" cy="35" r="8" fill="#8B0000" />
+                </svg>
+                APJ Bakery
+            </div>
+            <ul class="nav-links">
+                <li><a href="index.html">Menu</a></li>
+                <li><a href="table.html" class="active">Track Order</a></li>
+                <li><a href="admin-login.html">Admin</a></li>
+            </ul>
+        </nav>
+        <div class="hero-content">
+            <h1>Track Your Bakery Delights</h1>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="table-tracker glass-panel">
+            <div class="tracker-header">
+                <h2>Find My Order</h2>
+                <div class="form-group inline" style="flex-wrap: wrap; gap: 10px;">
+                    <label for="searchTable">Table / Name:</label>
+                    <input type="text" id="searchTable" placeholder="Table No or Name">
+                    <button class="btn-primary" onclick="loadTableOrders()">Search</button>
+                    <button class="btn-refresh" onclick="loadAllUserOrders()" style="background:#eee; color:#333;">Show All Active</button>
+                </div>
+            </div>
+
+            <div class="table-orders-list" id="table-orders-list">
+                <p class="empty-state">Enter your table number to view recent orders.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check for search parameter in URL first
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlSearch = urlParams.get('search');
+            
+            // Fallback to localStorage
+            const savedSearch = urlSearch || localStorage.getItem('custName') || localStorage.getItem('currentTableId') || '';
+            
+            const searchInput = document.getElementById('searchTable');
+            if (searchInput) {
+                searchInput.value = savedSearch;
+                loadTableOrders();
+            }
+            
+            setInterval(loadTableOrders, 10000); // auto-refresh status
+        });
+    </script>
+</body>
+
+</html>

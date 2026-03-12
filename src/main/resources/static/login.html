@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Artisan Bakery | Login</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        .login-container {
+            max-width: 400px;
+            margin: 5rem auto;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .login-container input {
+            width: 100%;
+            margin-bottom: 1rem;
+            padding: 0.8rem;
+            font-size: 1.1rem;
+        }
+
+        #otp-section {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="hero mini">
+        <nav class="navbar">
+            <div class="logo">The Artisan Bakery</div>
+        </nav>
+        <div class="hero-content">
+            <h1>Welcome</h1>
+            <p>Login with your phone number to start ordering.</p>
+        </div>
+    </header>
+
+    <main class="container" style="display:block;">
+        <section class="login-container glass-panel">
+            <div id="phone-section">
+                <h2>Enter Phone Number</h2>
+                <input type="text" id="phoneNumber" placeholder="e.g. 555-0123" required>
+                <button class="btn-primary" onclick="requestOtp()">Send OTP</button>
+            </div>
+
+            <div id="otp-section">
+                <h2>Verify OTP</h2>
+                <p>Mock hint: enter 1234</p>
+                <input type="text" id="otpCode" placeholder="Enter 4-digit OTP" required>
+                <button class="btn-primary" onclick="verifyOtp()">Verify & Login</button>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // Redirect if already logged in
+        if (localStorage.getItem('userPhone')) {
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+
+</html>
