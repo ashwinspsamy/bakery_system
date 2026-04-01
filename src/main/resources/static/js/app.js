@@ -400,7 +400,7 @@ function selectPaymentMethod(method) {
     const upiCheck = document.getElementById('upi-paid-check');
 
     if (method === 'STORE_QR') {
-        if (storeQrDisplay) storeQrDisplay.style.display = 'block';
+        if (storeQrDisplay) storeQrDisplay.style.display = 'none'; // Hide QR code box
         if (openUpiBtn) openUpiBtn.style.display = 'block';
         if (screenshotSection) screenshotSection.style.display = 'none';
         if (payBtn) {
@@ -411,7 +411,7 @@ function selectPaymentMethod(method) {
         }
         if (fileInput) fileInput.value = '';
         if (upiCheck) upiCheck.checked = false;
-        generatePaymentQR();
+        generatePaymentQR(); // Still generate UPI URL in background for Pay Now deep link
     } else {
         if (storeQrDisplay) storeQrDisplay.style.display = 'none';
         if (openUpiBtn) openUpiBtn.style.display = 'none';
