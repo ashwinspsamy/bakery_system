@@ -16,7 +16,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.lang.NonNull;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
 
 @RestController
@@ -66,7 +68,38 @@ public class BakeryController {
     }
 
     @PostMapping("/orders")
-    public BakeryOrder placeOrder(@RequestBody OrderRequest orderRequest) {
+    public ResponseEntity<?> placeOrder(@RequestBody OrderRequest orderRequest) {
+        // ── Server-side Screenshot Security Checks (UPI only) ────────────────────────
+        if ("STORE_QR".equals(orderRequest.getPaymentMethod())) {
+
+            // 1. Reject if screenshot hash is already used in a prior order
+            if (orderRequest.getScreenshotHash() != null && !orderRequest.getScreenshotHash().isBlank()) {
+                boolean hashExists = orderRepository.existsByScreenshotHash(orderRequest.getScreenshotHash());
+                if (hashExists) {
+                    return ResponseEntity.badRequest().body(
+                        java.util.Map.of("error", "DUPLICATE_SCREENSHOT",
+                            "message", "This payment screenshot has already been used for a previous order. Please take a new screenshot."));
+                }
+            }
+
+            // 2. Validate screenshot timestamp from EXIF is within 10 minutes
+            if (orderRequest.getScreenshotTimestamp() != null && !orderRequest.getScreenshotTimestamp().isBlank()) {
+                try {
+                    Instant screenshotTime = Instant.parse(orderRequest.getScreenshotTimestamp());
+                    long ageMinutes = Duration.between(screenshotTime, Instant.now()).toMinutes();
+                    if (ageMinutes > 10 || ageMinutes < -1) { // allow 1 min clock skew
+                        return ResponseEntity.badRequest().body(
+                            java.util.Map.of("error", "SCREENSHOT_TOO_OLD",
+                                "message", "Payment screenshot is too old (" + ageMinutes + " minutes). Please take a fresh screenshot within 10 minutes of payment."));
+                    }
+                } catch (Exception e) {
+                    // If we can't parse the timestamp, log and continue (frontend validated already)
+                    System.err.println("Could not parse screenshotTimestamp: " + orderRequest.getScreenshotTimestamp());
+                }
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────────────
+
         BakeryOrder order = new BakeryOrder();
         order.setTableNumber(orderRequest.getTableNumber());
         order.setCustomerName(orderRequest.getCustomerName());
@@ -75,6 +108,11 @@ public class BakeryController {
         order.setPaymentMethod(orderRequest.getPaymentMethod());
         order.setOrderTime(LocalDateTime.now());
         order.setStatus(OrderStatus.PAYMENT_PENDING);
+
+        // Store the screenshot hash for future duplicate detection
+        if (orderRequest.getScreenshotHash() != null && !orderRequest.getScreenshotHash().isBlank()) {
+            order.setScreenshotHash(orderRequest.getScreenshotHash());
+        }
 
         double total = 0;
         for (OrderItemRequest itemReq : orderRequest.getItems()) {
@@ -94,7 +132,7 @@ public class BakeryController {
         }
 
         order.setTotalPrice(total);
-        return orderRepository.save(order);
+        return ResponseEntity.ok(orderRepository.save(order));
     }
 
     @GetMapping("/orders")
@@ -134,7 +172,7 @@ public class BakeryController {
     @GetMapping("/settings/upi")
     public ResponseEntity<UpiSettings> getUpiSettings() {
         return upiRepository.findFirstByOrderByIdAsc()
-                .map(ResponseEntity::ok)
+                .map(s -> ResponseEntity.ok(s))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -145,7 +183,8 @@ public class BakeryController {
                     settings.setUpiId(updatedSettings.getUpiId());
                     settings.setRecipientName(updatedSettings.getRecipientName());
                     settings.setMerchantName(updatedSettings.getMerchantName());
-                    return ResponseEntity.ok(upiRepository.save(settings));
+                    UpiSettings saved = upiRepository.save(settings);
+                    return ResponseEntity.<UpiSettings>ok(saved);
                 })
                 .orElseGet(() -> ResponseEntity.ok(upiRepository.save(updatedSettings)));
     }

@@ -96,6 +96,46 @@
             60% { transform: translateX(-6px); }
             80% { transform: translateX(6px); }
         }
+
+        /* Screenshot validation message styles */
+        #screenshot-validation-msg > div {
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            margin-top: 10px;
+            animation: fadeInDown 0.3s ease;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .ss-success {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            color: #155724;
+        }
+
+        .ss-error {
+            background: #f8d7da;
+            border: 1px solid #dc3545;
+            color: #721c24;
+        }
+
+        .ss-warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+        }
+
+        .ss-checking {
+            background: #e8f4fd;
+            border: 1px solid #3498db;
+            color: #1a5276;
+            font-style: italic;
+        }
     </style>
 </head>
 
@@ -247,11 +287,17 @@
 
             <!-- Screenshot Upload Section -->
             <div id="screenshot-section" style="display: none; margin-top: 15px; background: #fff3cd; padding: 15px; border-radius: 12px; border: 1px solid #ffc107;">
-                <label style="font-size: 0.9rem; color: #856404; font-weight: 600; display: block; margin-bottom: 8px;">Attach Payment Screenshot to Confirm:</label>
-                <input type="file" id="payment-screenshot" accept="image/*" style="width: 100%; margin-bottom: 12px; font-size: 0.85rem;" onchange="checkScreenshot()">
-                
+                <label style="font-size: 0.9rem; color: #856404; font-weight: 600; display: block; margin-bottom: 8px;">📸 Attach Payment Screenshot to Confirm:</label>
+                <div style="font-size: 0.78rem; color: #5d4037; background: #fff8e1; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; border-left: 3px solid #ff9800;">
+                    🔒 <strong>Security Check:</strong> Your screenshot will be verified for date &amp; time. Only screenshots taken <strong>within the last 10 minutes</strong> are accepted. Reusing old screenshots will be rejected.
+                </div>
+                <input type="file" id="payment-screenshot" accept="image/*" style="width: 100%; margin-bottom: 4px; font-size: 0.85rem;" onchange="checkScreenshot()">
+
+                <!-- Validation feedback -->
+                <div id="screenshot-validation-msg"></div>
+
                 <!-- UPI Confirmation Checkbox -->
-                <label class="upi-confirm-row" id="upi-confirm-row" for="upi-paid-check" style="display: flex; margin-top: 0; background: transparent; border: none; padding: 0;">
+                <label class="upi-confirm-row" id="upi-confirm-row" for="upi-paid-check" style="display: flex; margin-top: 10px; background: transparent; border: none; padding: 0;">
                     <input type="checkbox" id="upi-paid-check" onchange="checkScreenshot()">
                     ✅ I have completed the UPI payment
                 </label>

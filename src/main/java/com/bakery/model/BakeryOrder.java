@@ -22,6 +22,8 @@ public class BakeryOrder {
     private String customerYear;
     private double totalPrice;
     private String paymentMethod;
+    @Column(unique = true)
+    private String screenshotHash;
 
     @OneToMany(mappedBy = "bakeryOrder", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonManagedReference

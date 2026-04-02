@@ -490,22 +490,187 @@ function openUpiApp() {
     }
 }
 
-function checkScreenshot() {
+// ─── Screenshot Security & EXIF Validation ───────────────────────────────────
+
+/**
+ * Reads raw EXIF bytes from a JPEG file and extracts DateTimeOriginal (tag 0x9003).
+ * Returns a Date object or null if not found.
+ */
+async function extractExifDateTime(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const buf = new Uint8Array(e.target.result);
+                // JPEG starts with FFD8
+                if (buf[0] !== 0xFF || buf[1] !== 0xD8) { resolve(null); return; }
+
+                let offset = 2;
+                while (offset < buf.length - 2) {
+                    if (buf[offset] !== 0xFF) break;
+                    const marker = buf[offset + 1];
+                    const segLen = (buf[offset + 2] << 8) | buf[offset + 3];
+
+                    // APP1 marker = 0xE1, contains EXIF
+                    if (marker === 0xE1) {
+                        const exifHeader = String.fromCharCode(...buf.slice(offset + 4, offset + 10));
+                        if (exifHeader.startsWith('Exif')) {
+                            const tiffStart = offset + 10;
+                            const isLE = buf[tiffStart] === 0x49; // 'II' = little-endian
+                            const read16 = (o) => isLE ? (buf[tiffStart+o] | buf[tiffStart+o+1]<<8) : (buf[tiffStart+o]<<8 | buf[tiffStart+o+1]);
+                            const read32 = (o) => isLE ? (buf[tiffStart+o] | buf[tiffStart+o+1]<<8 | buf[tiffStart+o+2]<<16 | buf[tiffStart+o+3]<<24) : (buf[tiffStart+o]<<24 | buf[tiffStart+o+1]<<16 | buf[tiffStart+o+2]<<8 | buf[tiffStart+o+3]);
+
+                            const ifd0Offset = read32(4);
+                            const ifd0Count = read16(ifd0Offset);
+
+                            let exifIfdOffset = null;
+                            for (let i = 0; i < ifd0Count; i++) {
+                                const entryOffset = ifd0Offset + 2 + i * 12;
+                                const tag = read16(entryOffset);
+                                if (tag === 0x8769) { exifIfdOffset = read32(entryOffset + 8); break; }
+                            }
+
+                            if (exifIfdOffset !== null) {
+                                const exifCount = read16(exifIfdOffset);
+                                for (let i = 0; i < exifCount; i++) {
+                                    const entryOffset = exifIfdOffset + 2 + i * 12;
+                                    const tag = read16(entryOffset);
+                                    // DateTimeOriginal = 0x9003, DateTimeDigitized = 0x9004
+                                    if (tag === 0x9003 || tag === 0x9004) {
+                                        const valOffset = read32(entryOffset + 8);
+                                        const dtStr = String.fromCharCode(...buf.slice(tiffStart + valOffset, tiffStart + valOffset + 19));
+                                        // Format: "YYYY:MM:DD HH:MM:SS"
+                                        const parsed = dtStr.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+                                        const date = new Date(parsed);
+                                        if (!isNaN(date.getTime())) { resolve(date); return; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    offset += 2 + segLen;
+                }
+                resolve(null);
+            } catch (err) {
+                console.warn('EXIF parse error:', err);
+                resolve(null);
+            }
+        };
+        reader.readAsArrayBuffer(file.slice(0, 65536)); // Read only first 64KB for EXIF
+    });
+}
+
+/**
+ * Computes a SHA-256 hex hash of a file's contents.
+ */
+async function computeFileHash(file) {
+    const buf = await file.arrayBuffer();
+    const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Tracks EXIF validation state
+let screenshotValidationState = { valid: false, hash: null, exifTime: null, warningOnly: false };
+
+/**
+ * Validates the screenshot file:
+ * 1. Checks EXIF DateTimeOriginal is within MAX_AGE_MINUTES of now
+ * 2. Checks the file hasn't been used in a previous order (via localStorage hash cache)
+ * Updates UI with result.
+ */
+async function checkScreenshot() {
     const fileInput = document.getElementById('payment-screenshot');
     const checkbox = document.getElementById('upi-paid-check');
     const confirmBtn = document.getElementById('confirm-pay-btn');
-    
-    if (fileInput && fileInput.files.length > 0 && checkbox && checkbox.checked) {
+    const validationDiv = document.getElementById('screenshot-validation-msg');
+
+    screenshotValidationState = { valid: false, hash: null, exifTime: null, warningOnly: false };
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '0.5';
+
+    if (!fileInput || fileInput.files.length === 0) {
+        if (validationDiv) validationDiv.innerHTML = '';
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
+    const now = new Date();
+
+    // Show scanning state
+    if (validationDiv) {
+        validationDiv.innerHTML = `<div class="ss-checking">🔍 Verifying screenshot authenticity...</div>`;
+    }
+
+    // Compute hash to detect reuse
+    let fileHash = null;
+    try { fileHash = await computeFileHash(file); } catch(e) {}
+
+    // Check if hash was already used
+    const usedHashes = JSON.parse(localStorage.getItem('usedScreenshotHashes') || '[]');
+    if (fileHash && usedHashes.includes(fileHash)) {
+        if (validationDiv) {
+            validationDiv.innerHTML = `<div class="ss-error">❌ <strong>Duplicate screenshot detected!</strong><br>This screenshot was already used for a previous order. Please take a new screenshot of your payment.</div>`;
+        }
+        screenshotValidationState.valid = false;
+        return;
+    }
+
+    // Extract EXIF timestamp
+    let exifDate = null;
+    // Only attempt EXIF for JPEG images
+    if (file.type === 'image/jpeg' || file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')) {
+        exifDate = await extractExifDateTime(file);
+    }
+
+    const ageMs = exifDate ? (now - exifDate) : null;
+    const ageMinutes = ageMs !== null ? Math.round(ageMs / 60000) : null;
+
+    if (exifDate) {
+        const timeStr = exifDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        const dateStr = exifDate.toLocaleDateString();
+
+        if (ageMs < 0) {
+            // Screenshot timestamp is in the future — suspicious
+            if (validationDiv) {
+                validationDiv.innerHTML = `<div class="ss-error">❌ <strong>Invalid screenshot timestamp!</strong><br>Screenshot date/time is in the future (${dateStr} ${timeStr}). Please take a fresh screenshot.</div>`;
+            }
+            screenshotValidationState.valid = false;
+            return;
+        } else if (ageMs > MAX_AGE_MS) {
+            // Screenshot is too old
+            if (validationDiv) {
+                validationDiv.innerHTML = `<div class="ss-error">❌ <strong>Screenshot too old!</strong><br>Taken at: <strong>${dateStr} ${timeStr}</strong> (${ageMinutes} min ago).<br>Please take a new screenshot within 10 minutes of payment.</div>`;
+            }
+            screenshotValidationState.valid = false;
+            return;
+        } else {
+            // Valid time window
+            if (validationDiv) {
+                validationDiv.innerHTML = `<div class="ss-success">✅ <strong>Screenshot verified!</strong><br>📸 Taken at <strong>${timeStr}</strong> (${ageMinutes} min ago) — within valid window.</div>`;
+            }
+            screenshotValidationState.exifTime = exifDate.toISOString();
+        }
+    } else {
+        // No EXIF data — could be PNG/screenshot from phone without EXIF, allow but warn
+        if (validationDiv) {
+            validationDiv.innerHTML = `<div class="ss-warning">⚠️ <strong>Could not verify timestamp from image.</strong><br>Make sure the screenshot is from your current payment. Non-JPEG or edited images may lack timestamp data.</div>`;
+        }
+        screenshotValidationState.warningOnly = true; // allow with warning
+    }
+
+    screenshotValidationState.hash = fileHash;
+    screenshotValidationState.valid = true;
+
+    // Enable confirm button only when both screenshot is valid AND checkbox is checked
+    if (checkbox && checkbox.checked) {
         confirmBtn.disabled = false;
         confirmBtn.style.opacity = '1';
-    } else {
-        confirmBtn.disabled = true;
-        confirmBtn.style.opacity = '0.5';
     }
 }
 
 async function processPayment() {
-    // If UPI selected, require confirmation checkbox and screenshot
+    // If UPI selected, require confirmation checkbox, screenshot, and timestamp validation
     if (selectedPaymentMethod === 'STORE_QR') {
         const fileInput = document.getElementById('payment-screenshot');
         if (!fileInput || fileInput.files.length === 0) {
@@ -513,14 +678,25 @@ async function processPayment() {
             return;
         }
 
+        // Enforce screenshot security validation
+        if (!screenshotValidationState.valid) {
+            showToast('❌ Screenshot validation failed. Please upload a valid, recent payment screenshot.', 'error');
+            const section = document.getElementById('screenshot-section');
+            if (section) {
+                section.style.animation = 'none';
+                section.offsetHeight;
+                section.style.animation = 'shake 0.4s ease';
+            }
+            return;
+        }
+
         const upiCheck = document.getElementById('upi-paid-check');
         if (upiCheck && !upiCheck.checked) {
             showToast('Please confirm you have completed the UPI payment', 'error');
-            // Shake the section
             const row = document.getElementById('screenshot-section');
             if (row) {
                 row.style.animation = 'none';
-                row.offsetHeight; // reflow
+                row.offsetHeight;
                 row.style.animation = 'shake 0.4s ease';
             }
             return;
@@ -541,6 +717,8 @@ async function processPayment() {
             department: localStorage.getItem('custDept') || 'None',
             customerYear: localStorage.getItem('custYear') || 'None',
             paymentMethod: selectedPaymentMethod,
+            screenshotHash: screenshotValidationState.hash || null,
+            screenshotTimestamp: screenshotValidationState.exifTime || null,
             items: cart.map(item => ({
                 menuItemId: item.menuItem.id,
                 quantity: item.quantity
@@ -560,6 +738,14 @@ async function processPayment() {
                 // For UPI: auto-confirm payment since customer checked the box
                 // For Cash: admin must confirm payment in dashboard
                 if (selectedPaymentMethod === 'STORE_QR') {
+                    // Mark this screenshot hash as used to prevent reuse
+                    if (screenshotValidationState.hash) {
+                        const usedHashes = JSON.parse(localStorage.getItem('usedScreenshotHashes') || '[]');
+                        usedHashes.push(screenshotValidationState.hash);
+                        // Keep only recent 50 hashes
+                        if (usedHashes.length > 50) usedHashes.shift();
+                        localStorage.setItem('usedScreenshotHashes', JSON.stringify(usedHashes));
+                    }
                     await fetch(`${API_URL}/orders/${result.id}/confirm-payment`, { method: 'POST' });
                     showToast('UPI Payment Confirmed! Order sent to kitchen 🎉');
                 } else {
@@ -597,13 +783,40 @@ async function processPayment() {
                 updateCartUI();
 
             } else {
-                showToast('Failed to place order', 'error');
+                // Parse backend security rejection
+                let errMsg = 'Failed to place order. Please try again.';
+                try {
+                    const errBody = await response.json();
+                    if (errBody && errBody.error) {
+                        const validationDiv = document.getElementById('screenshot-validation-msg');
+                        if (errBody.error === 'DUPLICATE_SCREENSHOT') {
+                            errMsg = '❌ Duplicate screenshot rejected by server.';
+                            if (validationDiv) {
+                                validationDiv.innerHTML = `<div class="ss-error">❌ <strong>Server rejected this screenshot!</strong><br>${errBody.message}<br><em>Please take a completely new screenshot of your payment.</em></div>`;
+                            }
+                            // Force reset the file input
+                            const fileInput = document.getElementById('payment-screenshot');
+                            if (fileInput) fileInput.value = '';
+                            screenshotValidationState = { valid: false, hash: null, exifTime: null, warningOnly: false };
+                        } else if (errBody.error === 'SCREENSHOT_TOO_OLD') {
+                            errMsg = '❌ Screenshot timestamp rejected by server.';
+                            if (validationDiv) {
+                                validationDiv.innerHTML = `<div class="ss-error">❌ <strong>Server rejected screenshot timing!</strong><br>${errBody.message}</div>`;
+                            }
+                            screenshotValidationState = { valid: false, hash: null, exifTime: null, warningOnly: false };
+                        } else {
+                            errMsg = errBody.message || errMsg;
+                        }
+                    }
+                } catch(e) { /* not JSON */ }
+                showToast(errMsg, 'error');
                 payBtn.disabled = false;
+                payBtn.style.opacity = '0.5';
                 payBtn.textContent = selectedPaymentMethod === 'STORE_QR' ? 'Confirm Order' : 'Place Order (Cash)';
             }
         } catch (error) {
             console.error('Error:', error);
-            showToast('Network error', 'error');
+            showToast('Network error. Please check your connection.', 'error');
             payBtn.disabled = false;
             payBtn.textContent = selectedPaymentMethod === 'STORE_QR' ? 'Confirm Order' : 'Place Order (Cash)';
         }
