@@ -21,6 +21,12 @@ const tableNumberInput = document.getElementById('tableNumber');
 
 // UPI payment state
 let upiPaymentConfirmed = false;
+let currentOrderId = '';
+let checkoutStage = 'summary'; // summary, payment, upload
+let payStartTime = 0;
+let uploadTimerValue = 300; // 5 minutes in seconds
+let uploadTimerInterval = null;
+let isReturningFromUPI = false;
 
 // Translations
 const translations = {
@@ -359,121 +365,315 @@ async function placeOrder() {
         }
     }
 
+    // Initialize Order Summary
+    currentOrderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
+    showOrderSummary();
+
     const modal = document.getElementById('payment-modal');
-    if (modal) {
-        modal.style.display = 'flex';
-        const totalPrice = cart.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-        const modalTotal = document.getElementById('modal-total-price');
-        if (modalTotal) modalTotal.textContent = formatCurrency(totalPrice);
+    if (modal) modal.style.display = 'flex';
+}
 
-        // Show customer info in summary
-        const infoDiv = document.getElementById('payment-customer-info');
-        if (infoDiv) {
-            const name = localStorage.getItem('custName') || 'Guest';
-            const dept = localStorage.getItem('custDept') || 'N/A';
-            const year = localStorage.getItem('custYear') || 'N/A';
-            infoDiv.innerHTML = `<strong>Ordering for:</strong> ${name} <br> <strong>Dept:</strong> ${dept} · <strong>Year:</strong> ${year}`;
-        }
+function showOrderSummary() {
+    checkoutStage = 'summary';
+    updateCheckoutUI();
 
-        const payBtn = document.getElementById('confirm-pay-btn');
-        if (payBtn) {
-            payBtn.disabled = false;
-            payBtn.textContent = 'Pay Now';
-        }
-        
-        // Always default to UPI payment
-        selectPaymentMethod('STORE_QR');
+    const summaryOrderId = document.getElementById('summary-order-id');
+    const summaryItemsList = document.getElementById('summary-items-list');
+    const summaryTotalPrice = document.getElementById('summary-total-price');
+    const summaryDateTime = document.getElementById('summary-date-time');
+    const summaryCustomerDetails = document.getElementById('summary-customer-details');
+
+    if (summaryOrderId) summaryOrderId.textContent = currentOrderId;
+    
+    if (summaryItemsList) {
+        summaryItemsList.innerHTML = cart.map(item => `
+            <div class="summary-item">
+                <span>${item.quantity}x ${item.menuItem.name}</span>
+                <span>${formatCurrency(item.menuItem.price * item.quantity)}</span>
+            </div>
+        `).join('');
+    }
+
+    const total = cart.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+    if (summaryTotalPrice) summaryTotalPrice.textContent = formatCurrency(total);
+    
+    if (summaryDateTime) {
+        summaryDateTime.textContent = new Date().toLocaleString();
+    }
+
+    if (summaryCustomerDetails) {
+        const name = localStorage.getItem('custName') || 'Guest';
+        const dept = localStorage.getItem('custDept') || 'N/A';
+        const year = localStorage.getItem('custYear') || 'N/A';
+        summaryCustomerDetails.innerHTML = `<strong>Ordering for:</strong> ${name} <br> <strong>Dept:</strong> ${dept} · <strong>Year:</strong> ${year}`;
     }
 }
 
-function selectPaymentMethod(method) {
-    selectedPaymentMethod = method;
-    upiPaymentConfirmed = false;
-    const cashBtn = document.getElementById('method-cash');
-    if (cashBtn) cashBtn.classList.toggle('active', method === 'CASH');
-    if (storeQrBtn) storeQrBtn.classList.toggle('active', method === 'STORE_QR');
+function goToPaymentStage() {
+    checkoutStage = 'payment';
+    updateCheckoutUI();
 
-    const payBtn = document.getElementById('confirm-pay-btn');
-    const openUpiBtn = document.getElementById('open-upi-app-btn');
-    const screenshotSection = document.getElementById('screenshot-section');
-    const fileInput = document.getElementById('payment-screenshot');
-    const upiCheck = document.getElementById('upi-paid-check');
+    const paymentTotalDisplay = document.getElementById('payment-total-display');
+    const paymentOrderId = document.getElementById('payment-order-id');
+    const total = cart.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
 
-    if (method === 'STORE_QR') {
-        if (storeQrDisplay) storeQrDisplay.style.display = 'none'; // Hide QR code box
-        if (openUpiBtn) openUpiBtn.style.display = 'block';
-        if (screenshotSection) screenshotSection.style.display = 'none';
-        if (payBtn) {
-            payBtn.style.display = 'none';
-            payBtn.disabled = true;
-            payBtn.style.opacity = '0.5';
-            payBtn.textContent = 'Confirm Order';
-        }
-        if (fileInput) fileInput.value = '';
-        if (upiCheck) upiCheck.checked = false;
-        generatePaymentQR(); // Still generate UPI URL in background for Pay Now deep link
-    } else {
-        if (storeQrDisplay) storeQrDisplay.style.display = 'none';
-        if (openUpiBtn) openUpiBtn.style.display = 'none';
-        if (screenshotSection) screenshotSection.style.display = 'none';
-        if (payBtn) {
-            payBtn.style.display = 'block';
-            payBtn.disabled = false;
-            payBtn.style.opacity = '1';
-            payBtn.textContent = 'Place Order (Cash)';
-        }
+    if (paymentTotalDisplay) paymentTotalDisplay.textContent = formatCurrency(total);
+    if (paymentOrderId) paymentOrderId.textContent = currentOrderId;
+
+    generateUPIUrl();
+}
+
+function backToSummary() {
+    showOrderSummary();
+}
+
+function updateCheckoutUI() {
+    const title = document.getElementById('checkout-title');
+    const stages = ['summary', 'payment', 'upload'];
+    
+    stages.forEach(stage => {
+        const el = document.getElementById(`stage-${stage}`);
+        if (el) el.classList.toggle('active', checkoutStage === stage);
+    });
+
+    if (title) {
+        if (checkoutStage === 'summary') title.textContent = 'Order Summary';
+        if (checkoutStage === 'payment') title.textContent = 'Payment';
+        if (checkoutStage === 'upload') title.textContent = 'Verify Payment';
     }
+}
+
+let currentUpiPayUrl = '';
+
+function generateUPIUrl() {
+    const total = cart.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+    const upiId = 'bharathkavi25@okicici';
+    const pn = 'FoodApp';
+    const am = total.toFixed(2);
+    const cu = 'INR';
+    const tn = currentOrderId;
+    
+    currentUpiPayUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(pn)}&am=${am}&cu=${cu}&tn=${tn}`;
+}
+
+function handlePayNow() {
+    if (!currentUpiPayUrl) return;
+
+    payStartTime = Date.now();
+    isReturningFromUPI = true;
+    window.location.href = currentUpiPayUrl;
+
+    // Start listening for return
+    attachSmartReturnListeners();
+}
+
+function attachSmartReturnListeners() {
+    const handleReturn = () => {
+        if (!isReturningFromUPI) return;
+        
+        const timeSpent = (Date.now() - payStartTime) / 1000;
+        isReturningFromUPI = false;
+
+        // Cleanup listeners
+        document.removeEventListener('visibilitychange', handleReturn);
+        window.removeEventListener('focus', handleReturn);
+
+        if (timeSpent < 45) {
+            // Show custom "Did you pay?" popup
+            const didPaidModal = document.getElementById('did-you-pay-modal');
+            if (didPaidModal) didPaidModal.style.display = 'flex';
+        } else {
+            // Spent > 45s, go directly to upload
+            showUploadStage();
+        }
+    };
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') handleReturn();
+    });
+    window.addEventListener('focus', handleReturn);
+}
+
+function handleDidPay(didPay) {
+    const didPaidModal = document.getElementById('did-you-pay-modal');
+    if (didPaidModal) didPaidModal.style.display = 'none';
+
+    if (didPay) {
+        showUploadStage();
+    } else {
+        checkoutStage = 'payment';
+        updateCheckoutUI();
+    }
+}
+
+function showUploadStage() {
+    checkoutStage = 'upload';
+    updateCheckoutUI();
+
+    const uploadOrderId = document.getElementById('upload-order-id');
+    if (uploadOrderId) uploadOrderId.textContent = currentOrderId;
+
+    startUploadTimer();
+}
+
+function startUploadTimer() {
+    if (uploadTimerInterval) clearInterval(uploadTimerInterval);
+    uploadTimerValue = 300; // 5 minutes
+    
+    const display = document.getElementById('upload-timer-display');
+    
+    uploadTimerInterval = setInterval(() => {
+        uploadTimerValue--;
+        
+        const mins = Math.floor(uploadTimerValue / 60);
+        const secs = uploadTimerValue % 60;
+        const timeStr = `Upload within ${mins}:${secs.toString().padStart(2, '0')} minutes`;
+        
+        if (display) {
+            display.textContent = timeStr;
+            if (uploadTimerValue <= 60) {
+                display.classList.add('timer-warning');
+            } else {
+                display.classList.remove('timer-warning');
+            }
+        }
+
+        if (uploadTimerValue <= 0) {
+            clearInterval(uploadTimerInterval);
+            handleUploadTimeout();
+        }
+    }, 1000);
+}
+
+function handleUploadTimeout() {
+    showToast('Payment Verification Failed - Time Expired', 'error');
+    const uploadStatus = document.getElementById('upload-status');
+    if (uploadStatus) {
+        uploadStatus.innerHTML = `<div class="ss-error">❌ <strong>Time Expired!</strong><br>You did not upload the screenshot in time. Please try the payment again.</div>`;
+    }
+    
+    // Redirect back to payment stage after 3 seconds
+    setTimeout(() => {
+        checkoutStage = 'payment';
+        updateCheckoutUI();
+        if (uploadStatus) uploadStatus.innerHTML = '';
+    }, 3000);
 }
 
 function closePaymentModal() {
     const modal = document.getElementById('payment-modal');
     if (modal) modal.style.display = 'none';
+    if (uploadTimerInterval) clearInterval(uploadTimerInterval);
 }
 
-async function generatePaymentQR() {
-    const qrContainer = document.getElementById('order-upi-qrcode');
-    const detailsText = document.getElementById('upi-details-text');
-    if (!qrContainer) return;
+async function handleScreenshotUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const statusDisplay = document.getElementById('upload-status');
+    const resultBox = document.getElementById('verification-result');
+    const confirmBtn = document.getElementById('final-confirm-btn');
+
+    if (statusDisplay) {
+        statusDisplay.innerHTML = `<div class="ss-checking">🔍 Extracting payment details via AI...</div>`;
+    }
+    if (resultBox) resultBox.style.display = 'none';
+    if (confirmBtn) confirmBtn.style.display = 'none';
 
     try {
-        // Fetch fresh settings if not yet loaded
-        if (!upiSettings) {
-            const response = await fetch(`${API_URL}/settings/upi`);
-            if (response.ok) {
-                upiSettings = await response.json();
-            }
-        }
+        const formData = new FormData();
+        formData.append('screenshot', file);
+        formData.append('orderId', currentOrderId);
+        formData.append('expectedAmount', cart.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0).toFixed(2));
 
-        if (!upiSettings || !upiSettings.upiId) {
-            qrContainer.innerHTML = '<p style="color:red; font-size:0.8rem;">UPI settings not configured.</p>';
-            return;
-        }
-
-        qrContainer.innerHTML = '';
-        const totalPrice = cart.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-        
-        // UPI URL format: upi://pay?pa=address@bank&pn=Name&am=Amount&cu=INR
-        const upiUrl = `upi://pay?pa=${upiSettings.upiId}&pn=${encodeURIComponent(upiSettings.recipientName)}&am=${totalPrice.toFixed(2)}&cu=INR`;
-        currentUpiUrl = upiUrl;
-        
-        new QRCode(qrContainer, {
-            text: upiUrl,
-            width: 180,
-            height: 180,
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.M
+        const response = await fetch(`${API_URL}/orders/verify-screenshot`, {
+            method: 'POST',
+            body: formData
         });
 
-        if (detailsText) {
-            detailsText.innerHTML = `
-                <div style="font-size:0.9rem; color:#2d241c;">Pay to: <strong>${upiSettings.recipientName}</strong></div>
-                <div style="font-size:0.8rem; color:#666;">UPI ID: ${upiSettings.upiId}</div>
-            `;
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            if (statusDisplay) statusDisplay.innerHTML = `<div class="ss-success">✅ Screenshot Verified successfully!</div>`;
+            if (resultBox) {
+                resultBox.style.display = 'block';
+                resultBox.style.background = '#f0fff4';
+                resultBox.style.border = '1px solid #68d391';
+                resultBox.innerHTML = `
+                    <div style="font-size: 0.85rem; color: #276749;">
+                        <strong>Transaction ID:</strong> ${result.transactionId}<br>
+                        <strong>Amount:</strong> ₹${result.amount}<br>
+                        <strong>Status:</strong> ${result.status}
+                    </div>
+                `;
+            }
+            if (confirmBtn) {
+                confirmBtn.style.display = 'block';
+                confirmBtn.disabled = false;
+            }
+        } else {
+            const errorType = result.errorType || 'v_fail';
+            if (errorType === 'DUPLICATE') {
+                showToast('Order Cancelled - Duplicate Detected', 'error');
+                if (statusDisplay) statusDisplay.innerHTML = `<div class="ss-error">🚫 <strong>Order Cancelled!</strong><br>Duplicate Transaction ID detected. This payment has already been used.</div>`;
+            } else {
+                if (statusDisplay) statusDisplay.innerHTML = `<div class="ss-error">❌ <strong>Verification Failed!</strong><br>${result.message || 'Details do not match.'}</div>`;
+            }
+            if (confirmBtn) confirmBtn.style.display = 'none';
         }
     } catch (error) {
-        console.error('Error generating payment QR:', error);
-        qrContainer.innerHTML = 'Error loading UPI details';
+        console.error('Verification error:', error);
+        if (statusDisplay) statusDisplay.innerHTML = `<div class="ss-error">❌ Error connecting to verification server.</div>`;
+    }
+}
+
+async function finalizeOrder() {
+    const tableNumber = document.getElementById('tableNumber') ? document.getElementById('tableNumber').value : 'Walk-in';
+    const total = cart.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+
+    const orderRequest = {
+        orderId: currentOrderId,
+        tableNumber: tableNumber,
+        customerName: localStorage.getItem('custName') || 'Guest',
+        department: localStorage.getItem('custDept') || 'N/A',
+        customerYear: localStorage.getItem('custYear') || 'N/A',
+        paymentMethod: 'STORE_QR',
+        totalPrice: total,
+        items: cart.map(item => ({
+            menuItemId: item.menuItem.id,
+            quantity: item.quantity
+        }))
+    };
+
+    try {
+        const response = await fetch(`${API_URL}/orders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderRequest)
+        });
+
+        if (response.ok) {
+            showToast('Order Placed! Confirming payment...');
+            if (uploadTimerInterval) clearInterval(uploadTimerInterval);
+            
+            // Show Success Modal
+            closePaymentModal();
+            const successModal = document.getElementById('order-success-modal');
+            if (successModal) {
+                const successTotal = document.getElementById('success-total-price');
+                if (successTotal) successTotal.textContent = formatCurrency(total);
+                successModal.style.display = 'flex';
+            }
+            
+            // Clear cart
+            cart = [];
+            updateCartUI();
+        } else {
+            showToast('Failed to save order. Please contact staff.', 'error');
+        }
+    } catch (error) {
+        console.error('Finalize error:', error);
+        showToast('Network error during finalization.', 'error');
     }
 }
 
@@ -652,11 +852,12 @@ async function checkScreenshot() {
             screenshotValidationState.exifTime = exifDate.toISOString();
         }
     } else {
-        // No EXIF data — could be PNG/screenshot from phone without EXIF, allow but warn
+        // No EXIF data — could be fake/edited. REJECT.
         if (validationDiv) {
-            validationDiv.innerHTML = `<div class="ss-warning">⚠️ <strong>Could not verify timestamp from image.</strong><br>Make sure the screenshot is from your current payment. Non-JPEG or edited images may lack timestamp data.</div>`;
+            validationDiv.innerHTML = `<div class="ss-error">❌ <strong>Could not verify timestamp from image.</strong><br>Please upload an original JPEG/JPG payment screenshot directly from your phone. Edited images or non-JPEGs lacking EXIF data are not allowed.</div>`;
         }
-        screenshotValidationState.warningOnly = true; // allow with warning
+        screenshotValidationState.valid = false;
+        return;
     }
 
     screenshotValidationState.hash = fileHash;
@@ -701,6 +902,21 @@ async function processPayment() {
             }
             return;
         }
+
+        const utrInput = document.getElementById('upi-reference-id');
+        if (utrInput) {
+            const utr = utrInput.value.trim();
+            if (utr.length !== 12 || !/^\\d{12}$/.test(utr)) {
+                showToast('❌ Please enter a valid 12-digit UPI Reference Number (UTR).', 'error');
+                utrInput.style.animation = 'none';
+                utrInput.offsetHeight;
+                utrInput.style.animation = 'shake 0.4s ease';
+                utrInput.style.borderColor = '#e74c3c';
+                return;
+            } else {
+                utrInput.style.borderColor = '#ccc';
+            }
+        }
     }
 
     const tableNumber = tableNumberInput ? tableNumberInput.value : 'Walk-in';
@@ -719,6 +935,7 @@ async function processPayment() {
             paymentMethod: selectedPaymentMethod,
             screenshotHash: screenshotValidationState.hash || null,
             screenshotTimestamp: screenshotValidationState.exifTime || null,
+            upiReferenceId: document.getElementById('upi-reference-id') ? document.getElementById('upi-reference-id').value.trim() : null,
             items: cart.map(item => ({
                 menuItemId: item.menuItem.id,
                 quantity: item.quantity

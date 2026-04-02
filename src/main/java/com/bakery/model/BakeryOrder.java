@@ -24,6 +24,10 @@ public class BakeryOrder {
     private String paymentMethod;
     @Column(unique = true)
     private String screenshotHash;
+    @Column(unique = true)
+    private String upiReferenceId;
+    @Column(unique = true)
+    private String customOrderId;
 
     @OneToMany(mappedBy = "bakeryOrder", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonManagedReference

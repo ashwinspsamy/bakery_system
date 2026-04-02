@@ -9,4 +9,7 @@ public interface OrderRepository extends JpaRepository<BakeryOrder, Long> {
 
     /** Returns true if any order already has the given screenshot hash (duplicate detection) */
     boolean existsByScreenshotHash(String screenshotHash);
+
+    /** Returns true if any order already has the given UPI Reference ID (duplicate UTR detection) */
+    boolean existsByUpiReferenceId(String upiReferenceId);
 }
